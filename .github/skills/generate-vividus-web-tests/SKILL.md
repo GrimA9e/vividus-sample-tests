@@ -2,6 +2,7 @@
 name: generate-vividus-web-tests
 description: 'Generate VIVIDUS test automation stories from test cases for web applications. Creates executable .story files following VIVIDUS syntax and project conventions. Use when: automating web test cases, converting manual tests to VIVIDUS stories, generating web UI test automation.'
 argument-hint: 'Enter your test case...'
+allowed-tools: Bash(playwright-cli:*) Bash(npx:*) Bash(npm:*)
 ---
 
 ## Process Overview
@@ -33,20 +34,54 @@ When aborting, explain what is missing and request a complete test case.
 
 ## Step 2: Execute test cases
 
-Use Playwright MCP to execute test cases and collect element locators for VIVIDUS story generation in Step 5.
+Use **playwright-cli** to execute test cases and collect element locators for VIVIDUS story generation in Step 5.
+
+Refer to `playwright-cli` skill and the reference files for the full command reference.
 
 ### Execution process
 
-1. **Navigate**: `browser_navigate(url)` - URL from test case or user prompt
+1. **Open browser and navigate**: Use the URL from the test case or user prompt.
+   ```bash
+   playwright-cli open <url>
+   # or navigate after opening
+   playwright-cli open
+   playwright-cli goto <url>
+   ```
 
 2. **For each test step**:
-   - **DO NOT take screenshots**, use `browser_snapshot()` to take a page snapshot to understand page structure and its elements
-   - Identify key elements from test cases e.g. form fields, interactive elements, visual components etc. and document their refs, text content and labels, states
-   - Collect stable locator attributes: IDs, data-testid, aria-labels, exact button/link text
-   - Perform actions to verify element behaviors: `browser_click`, `browser_type`, `browser_select_option`, or `browser_run_code`
-   - Document any differences from expected results or any missing or changed elements
+   - **DO NOT take screenshots**; use `playwright-cli snapshot` to capture the current page structure and element refs.
+   - Identify key elements (form fields, buttons, links, interactive components) from the snapshot and document their refs, visible text, labels, and states.
+   - Collect stable locator attributes using `eval` — inspect hidden attributes that do not appear in the snapshot:
+     ```bash
+     playwright-cli eval "el => el.getAttribute('data-testid')" <ref>
+     playwright-cli eval "el => el.getAttribute('aria-label')" <ref>
+     playwright-cli eval "el => el.id" <ref>
+     ```
+   - Perform actions to verify element behaviours:
+     ```bash
+     playwright-cli click <ref>            # click an element
+     playwright-cli fill <ref> "value"     # fill an input field
+     playwright-cli type "text"            # type into focused element
+     playwright-cli select <ref> "value"   # select a dropdown option
+     playwright-cli check <ref>            # check a checkbox
+     playwright-cli eval "<expression>" <ref>  # run arbitrary JS on an element
+     playwright-cli run-code "async page => { /* ... */ }"  # run a page-level script
+     ```
+   - After each action, run `playwright-cli snapshot` again to confirm the resulting page state.
+   - Document any differences from expected results or any missing/changed elements.
 
-3. **Dynamic content**: `browser_wait_for(text)` for async operations
+3. **Dynamic content**: After actions that trigger async updates (AJAX, redirects, animations), take a fresh snapshot to confirm content has loaded. If the expected content is not yet present, repeat the snapshot after a brief interaction or use `eval` to poll a DOM condition:
+   ```bash
+   playwright-cli snapshot
+   # if element still absent:
+   playwright-cli eval "document.querySelector('.success-banner') !== null"
+   playwright-cli snapshot  # retry
+   ```
+
+4. **Close the browser** when exploration is complete:
+   ```bash
+   playwright-cli close
+   ```
 
 ### Assumption Handling
 
